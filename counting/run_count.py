@@ -7,25 +7,20 @@ from boxmot.utils import ROOT
 from boxmot.utils.checks import TestRequirements
 
 
-
-
 # __tr = TestRequirements()
 # local_path = 'ultralytics'
 # __tr.check_packages((local_path,))
 
 from counting.count import counter_YOLO
 
-from ultralytics.utils import LOGGER , ops , colorstr
+from ultralytics.utils import LOGGER, ops, colorstr
 
 from functools import partial
 from pathlib import Path
-import csv 
+import csv
 import time
 import os
 from datetime import datetime
-
-
-
 
 
 def on_predict_start(predictor, persist=False):
@@ -37,14 +32,13 @@ def on_predict_start(predictor, persist=False):
         persist (bool, optional): Whether to persist the trackers if they already exist. Defaults to False.
     """
 
-    assert predictor.custom_args.tracking_method in TRACKERS, \
-        f"'{predictor.custom_args.tracking_method}' is not supported. Supported ones are {TRACKERS}"
+    assert (
+        predictor.custom_args.tracking_method in TRACKERS
+    ), f"'{predictor.custom_args.tracking_method}' is not supported. Supported ones are {TRACKERS}"
 
-    tracking_config = \
-        ROOT /\
-        'boxmot' /\
-        'configs' /\
-        (predictor.custom_args.tracking_method + '.yaml')
+    tracking_config = (
+        ROOT / "boxmot" / "configs" / (predictor.custom_args.tracking_method + ".yaml")
+    )
     trackers = []
     for i in range(predictor.dataset.bs):
         tracker = create_tracker(
@@ -53,10 +47,10 @@ def on_predict_start(predictor, persist=False):
             predictor.custom_args.reid_model,
             predictor.device,
             predictor.custom_args.half,
-            predictor.custom_args.per_class
+            predictor.custom_args.per_class,
         )
         # motion only modeles do not have
-        if hasattr(tracker, 'model'):
+        if hasattr(tracker, "model"):
             tracker.model.warmup()
         trackers.append(tracker)
 
@@ -68,32 +62,12 @@ def run(args):
 
     counter_yolo = counter_YOLO(args)
     # return counter_yolo
-    
-    results = counter_yolo.track(
-        source=args.source,
-        conf=args.conf,
-        iou=args.iou,
-        show=args.show,
-        stream=True,
-        device=args.device,
-        show_conf=args.show_conf,
-        save_txt=args.save_txt,
-        show_labels=args.show_labels,
-        save=args.save,
-        verbose=args.verbose,
-        exist_ok=args.exist_ok,
-        project=args.project,
-        name=args.name,
-        classes=args.classes,
-        imgsz=args.imgsz,
-        vid_stride=args.vid_stride,
-        line_width=args.line_width
-    )
 
-    counter_yolo.add_callback('on_predict_start', partial(on_predict_start, persist=True))
+    counter_yolo.add_callback(
+        "on_predict_start", partial(on_predict_start, persist=True)
+    )
     counter_yolo.predictor.custom_args = args
-    
-    
+
     # Setup model
     model = None
     if not counter_yolo.predictor.model:
@@ -101,24 +75,47 @@ def run(args):
 
     # Setup source every time predict is called
     source = args.source
-    counter_yolo.predictor.setup_source(source if source is not None else counter_yolo.predictor.args.source)
+    counter_yolo.predictor.setup_source(
+        source if source is not None else counter_yolo.predictor.args.source
+    )
 
     # Warmup model
     if not counter_yolo.predictor.done_warmup:
-        counter_yolo.predictor.model.warmup(imgsz=(1 if counter_yolo.predictor.model.pt or counter_yolo.predictor.model.triton else counter_yolo.predictor.dataset.bs, 3, *counter_yolo.predictor.imgsz))
+        counter_yolo.predictor.model.warmup(
+            imgsz=(
+                (
+                    1
+                    if counter_yolo.predictor.model.pt
+                    or counter_yolo.predictor.model.triton
+                    else counter_yolo.predictor.dataset.bs
+                ),
+                3,
+                *counter_yolo.predictor.imgsz,
+            )
+        )
         counter_yolo.predictor.done_warmup = True
 
-    counter_yolo.predictor.seen, counter_yolo.predictor.windows, counter_yolo.predictor.batch, profilers = 0, [], None, (ops.Profile(), ops.Profile(), ops.Profile(), ops.Profile(), ops.Profile())
-    counter_yolo.predictor.run_callbacks('on_predict_start')
-        
+    (
+        counter_yolo.predictor.seen,
+        counter_yolo.predictor.windows,
+        counter_yolo.predictor.batch,
+        profilers,
+    ) = (
+        0,
+        [],
+        None,
+        (ops.Profile(), ops.Profile(), ops.Profile(), ops.Profile(), ops.Profile()),
+    )
+    counter_yolo.predictor.run_callbacks("on_predict_start")
+
     for batch in counter_yolo.predictor.dataset:
-        counter_yolo.predictor.run_callbacks('on_predict_batch_start')
+        counter_yolo.predictor.run_callbacks("on_predict_batch_start")
         counter_yolo.predictor.batch = batch
         path, im0s, vid_cap, s = batch
-        
+
         counter_yolo.frame_number = int(vid_cap.get(cv2.CAP_PROP_POS_FRAMES))
 
-        im0s , im , profilers = counter_yolo.run_pipeline(im0s , path , profilers)
+        im0s, im, profilers = counter_yolo.run_pipeline(im0s, path, profilers)
 
         n = len(im0s)
 
@@ -130,16 +127,16 @@ def run(args):
             with profilers[4]:
                 counter_yolo.run_counting(i)
 
-            result = counter_yolo.predictor.results[i]     
-            
+            result = counter_yolo.predictor.results[i]
+
             result.speed = {
-                'preprocess': profilers[0].dt * 1E3 / n,
-                'inference': profilers[1].dt * 1E3 / n,
-                'postprocess': profilers[2].dt * 1E3 / n,
-                'tracking': profilers[3].dt * 1E3 / n,
-                'counting': profilers[4].dt * 1E3 / n}
+                "preprocess": profilers[0].dt * 1e3 / n,
+                "inference": profilers[1].dt * 1e3 / n,
+                "postprocess": profilers[2].dt * 1e3 / n,
+                "tracking": profilers[3].dt * 1e3 / n,
+                "counting": profilers[4].dt * 1e3 / n,
+            }
 
-        counter_yolo.predictor.run_callbacks('on_predict_batch_end')
+        counter_yolo.predictor.run_callbacks("on_predict_batch_end")
 
-
-    return counter_yolo , profilers
+    return counter_yolo, profilers
