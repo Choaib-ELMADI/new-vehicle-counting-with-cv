@@ -1,3 +1,5 @@
+from ultralytics.engine.predictor import BasePredictor
+
 import torch
 import cv2
 
@@ -62,7 +64,8 @@ def run(args):
     counter_yolo = counter_YOLO(args)
 
     # counter_yolo.predict(source=args.source, stream=False)
-    counter_yolo.predictor = counter_yolo._get_predictor(overrides=vars(args))
+    counter_yolo.predictor = BasePredictor(overrides=vars(args))
+    counter_yolo.predictor.model = counter_yolo.model
 
     counter_yolo.add_callback(
         "on_predict_start", partial(on_predict_start, persist=True)
