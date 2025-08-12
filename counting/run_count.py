@@ -62,7 +62,7 @@ def run(args):
     counter_yolo = counter_YOLO(args)
 
     # counter_yolo.predict(source=args.source, stream=False)
-    counter_yolo.predictor = counter_yolo._new_predictor(overrides=vars(args))
+    counter_yolo.predictor = counter_yolo._get_predictor(overrides=vars(args))
 
     counter_yolo.add_callback(
         "on_predict_start", partial(on_predict_start, persist=True)
