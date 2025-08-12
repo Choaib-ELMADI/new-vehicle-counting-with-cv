@@ -59,9 +59,9 @@ def on_predict_start(predictor, persist=False):
 
 @torch.no_grad()
 def run(args):
-
     counter_yolo = counter_YOLO(args)
-    # return counter_yolo
+
+    counter_yolo.predict(source=args.source, stream=False)
 
     counter_yolo.add_callback(
         "on_predict_start", partial(on_predict_start, persist=True)
